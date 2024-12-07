@@ -661,7 +661,7 @@ def algoritmo_genetico():
         # Mostrar progreso
         if generacion % 50 == 0:
             st.markdown(f"Generación {generacion}: Mejor Fitness = {mejor_fitness}")
-            st.dataframe(mejor_tablero, width=750, height=600)
+            st.dataframe(mejor_tablero, width=800, height=550)
     
     return mejor_tablero, mejor_fitness
 
