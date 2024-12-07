@@ -1,6 +1,9 @@
 import random
 import pandas as pd
 import streamlit as st
+import numpy as np
+import time
+
 from unidecode import unidecode
 
 # Configurar el ancho de la página
@@ -581,46 +584,117 @@ class Crossword:
         else:
             self.print_grid()
 
+# Función para generar un tablero aleatorio
+def generar_tablero():
+    letras = list("abcdefghijklmnopqrstuvwxyzñ ")
+    return np.random.choice(letras, (TAM_TABLERO, TAM_TABLERO))
+
+# Inicialización de la población
+def inicializar_poblacion():
+    return [generar_tablero() for _ in range(TAM_POBLACION)]
+
+def fitness(tablero):
+    puntuacion = 0
+    for i in range(TAM_TABLERO):
+        for j in range(TAM_TABLERO):
+            if tablero[i][j] == crucigrama.grid[i][j]:
+                puntuacion += 1
+    return puntuacion
+
+# Selección por ruleta
+def seleccion(poblacion, fitness_scores):
+    total_fitness = sum(fitness_scores)
+    if total_fitness > 0 :
+        probabilidades = [score / total_fitness for score in fitness_scores]
+    else:
+        probabilidades = [0 for _ in fitness_scores]
+    return random.choices(poblacion, weights=probabilidades, k=2)
+
+# Cruce (crossover)
+def crossover(parent1, parent2):
+    if random.random() > TASA_CRUCE:
+        return parent1.copy(), parent2.copy()
+    punto_corte = random.randint(1, TAM_TABLERO - 1) # elección al azar del punto de cruce
+    hijo1 = np.vstack((parent1[:punto_corte], parent2[punto_corte:]))
+    hijo2 = np.vstack((parent2[:punto_corte], parent1[punto_corte:]))
+    return hijo1, hijo2
+
+# Mutación
+def mutacion(tablero):
+    if random.random() < TASA_MUTACION:
+        x, y = random.randint(0, TAM_TABLERO - 1), random.randint(0, TAM_TABLERO - 1)
+        tablero[x, y] = random.choice(list("abcdefghijklmnopqrstuvwxyzñ "))
+    return tablero
+
+# Algoritmo genético
+def algoritmo_genetico():
+    poblacion = inicializar_poblacion()
+    mejor_tablero = None
+    mejor_fitness = 0
+    
+    for generacion in range(GENERACIONES + 1):
+        fitness_scores = [fitness(tablero) for tablero in poblacion]
+        
+        # Actualizar mejor solución
+        max_fitness = max(fitness_scores)
+        if max_fitness > mejor_fitness:
+            mejor_fitness = max_fitness
+            mejor_tablero = poblacion[np.argmax(fitness_scores)]
+        
+        # Nueva generación
+        nueva_poblacion = []
+        if isinstance(mejor_tablero, np.ndarray):
+            nueva_poblacion.extend([mejor_tablero])
+
+        while len(nueva_poblacion) < TAM_POBLACION:
+            padre1, padre2 = seleccion(poblacion, fitness_scores)
+            hijo1, hijo2 = crossover(padre1, padre2)
+            hijo1 = mutacion(hijo1)
+            hijo2 = mutacion(hijo2)
+            if fitness(hijo1) >= fitness(hijo2):
+                nueva_poblacion.extend([hijo1])
+            else:
+                nueva_poblacion.extend([hijo2])
+            
+        poblacion = nueva_poblacion[:TAM_POBLACION]
+        
+        # Mostrar progreso
+        if generacion % 100 == 0:
+            st.markdown(f"Generación {generacion}: Mejor Fitness = {mejor_fitness}")
+            st.dataframe(mejor_tablero, width=800, height=600)
+    
+    return mejor_tablero, mejor_fitness
+
+TAM_TABLERO = 15
+TAM_POBLACION = 100
+GENERACIONES = 1000
+TASA_CRUCE = 0.7
+TASA_MUTACION = 0.1
+
 # Lista de palabras a agregar
 VersionDeCrucigrama = 0
 palabras = []
 definiciones = []
 crucigrama = Crossword()
 
-@st.cache_data
-def GenerarCrucigrama(VersionDeCrucigrama):
+def show_crossword():
     global palabras, definiciones, crucigrama
+    col3, col4 = st.columns([1, 5])
+
+    # Generar palabras
     porcentaje = 1
     while(porcentaje>0.75):
-        aux = pd.DataFrame([[len(x), unidecode(x.lower()), y] for  x, y in Vocabulario.items() if len(x) < 11]).sample(frac=1).head(25)
+        aux = pd.DataFrame([[len(x), unidecode(x.lower()), y] for  x, y in Vocabulario.items() if len(x) < 11]).sample(frac=1).head(26)
         palabras = aux[1].values
         definiciones = aux[2].values
         porcentaje = sum([len(x) for x in palabras])/15**2
-        print(porcentaje)
+        print(f"Porcentaje de Palabras: {porcentaje:.04f}")
+
     # Crear y agregar palabras al crucigrama
     crucigrama = Crossword()
     crucigrama.add_words(palabras)
-
-
-def ResolverCrucigrama():
-    pass
-
-def show_crossword():
-    
-    # Dividir el espacio en tres columnas
-    col1, col2 = st.columns([1, 2])
-
-    with col1:
-        if st.button("Generar Crucigrama"):
-            global VersionDeCrucigrama
-            VersionDeCrucigrama += 1
-            GenerarCrucigrama(VersionDeCrucigrama)
-    
-    with col2:
-        if st.button("Resolver Crucigrama"):
-            ResolverCrucigrama()
-
-    col3, col4 = st.columns([1, 5])
+    CasillasUsadas = sum([sum([1 for y in x  if y != ' ']) for x in crucigrama.grid])/15**2
+    print(f"Porcentaje de Casillas Usadas: {CasillasUsadas:.04f}")
     
     # Mostrar las palabras horizontales y verticales
     with col3:
@@ -634,23 +708,25 @@ def show_crossword():
         <div style="max-height: 700px; overflow-y: scroll; border: 0px solid #ddd; padding: 10px;">
             {text}
             """, unsafe_allow_html=True)
+    if st.button("Nuevo Crucigrama"):
+        print("Hola mundo")
     
     # Mostrar el tablero en el centro
     with col4:
         st.markdown("## Tablero De Juego")
-        tablero = [[None for _ in range(15)] for _ in range(15)]
-        casillas_editables = crucigrama.word_positions
-        # Contenedor de la tabla
-        for i in range(15):
-            cols = st.columns(15)
-            for j in range(15):
-                if (i, j) in casillas_editables:
-                    with cols[j]:
-                        tablero[i][j] = st.text_input(" ", key=f"{i}_{j}", max_chars=1)
-                else:
-                    with cols[j]:
-                        # Mostrar celdas no editables como casillas vacías o coloreadas
-                        st.markdown('<div style="background-color: black; height: 30px;"></div>', unsafe_allow_html=True)
+
+        mejor_tablero, mejor_fitness = algoritmo_genetico()
+
+        st.markdown("### Tablero Real")
+        st.table(crucigrama.grid)
+
+        print(f"Mejor Fitness: {mejor_fitness}")
+        print("Tablero resultante:")
+        for fila in mejor_tablero:
+            for letra in fila:
+                print(letra, end=" ")
+            print()
+
 
 
 # Iniciar Streamlit
