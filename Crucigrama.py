@@ -659,15 +659,15 @@ def algoritmo_genetico():
         poblacion = nueva_poblacion[:TAM_POBLACION]
         
         # Mostrar progreso
-        if generacion % 100 == 0:
+        if generacion % 50 == 0:
             st.markdown(f"Generación {generacion}: Mejor Fitness = {mejor_fitness}")
-            st.dataframe(mejor_tablero, width=800, height=600)
+            st.dataframe(mejor_tablero, width=750, height=600)
     
     return mejor_tablero, mejor_fitness
 
 TAM_TABLERO = 15
 TAM_POBLACION = 100
-GENERACIONES = 1000
+GENERACIONES = 500
 TASA_CRUCE = 0.7
 TASA_MUTACION = 0.1
 
