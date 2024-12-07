@@ -679,7 +679,7 @@ crucigrama = Crossword()
 
 def show_crossword():
     global palabras, definiciones, crucigrama
-    col3, col4 = st.columns([1, 5])
+    col3, col4 = st.columns([1, 3])
 
     # Generar palabras
     porcentaje = 1
